@@ -127,6 +127,32 @@
 - {{ labels.risk_control_label }}: {{ position.get('risk_control', 'N/A') }}
 {% endif %}
 
+{% set lending = battle.get('stock_lending', {}) %}
+
+{% if lending %}
+### 🏦 Stock Lending 适合度
+
+| 项目 | 评估 |
+|------|------|
+| 适合度 | {{ lending.get('suitability', 'N/A') }} |
+| 评分 | {{ lending.get('suitability_score', 'N/A') }}/100 |
+| 可能收益 | {{ lending.get('expected_benefit', 'N/A') }} |
+| 最终建议 | {{ lending.get('final_suggestion', 'N/A') }} |
+
+**原因**: {{ lending.get('reason', 'N/A') }}
+
+**持仓者操作**: {{ lending.get('holder_action', 'N/A') }}
+
+{% if lending.get('main_risks') %}
+**主要风险**:
+
+{% for r in lending.get('main_risks') %}
+- {{ r }}
+{% endfor %}
+
+{% endif %}
+{% endif %}
+
 {% set checklist = battle.get('action_checklist', []) %}
 {% if checklist %}
 **✅ {{ labels.checklist_heading }}**
