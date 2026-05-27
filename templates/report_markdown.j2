@@ -6,7 +6,12 @@
 ## 📊 {{ labels.summary_heading }}
 
 {% for e in enriched %}
-{{ e.signal_emoji }} **{{ e.stock_name }}({{ e.result.code }})**: {{ e.localized_operation_advice }} | {{ labels.score_label }} {{ e.result.sentiment_score }} | {{ e.localized_trend_prediction }}
+{% set dashboard = e.result.dashboard if e.result.dashboard else {} %}
+{% set data_persp = dashboard.get('data_perspective') or {} %}
+{% set price_data = data_persp.get('price_position', {}) %}
+{% set current_price = e.result.current_price or price_data.get('current_price') or 'N/A' %}
+{% set change_pct = e.result.change_pct if e.result.change_pct is not none else 'N/A' %}
+{{ e.signal_emoji }} **{{ e.stock_name }}({{ e.result.code }})**: 当前价 {{ current_price }} | 涨跌幅 {{ change_pct }}% | {{ e.localized_operation_advice }} | {{ labels.score_label }} {{ e.result.sentiment_score }} | {{ e.localized_trend_prediction }}
 {% endfor %}
 
 ---
