@@ -51,6 +51,16 @@ if (-not (Test-PythonCode -Python $pythonBin -Code "import multipart, multipart.
   throw 'python-multipart is not importable in the selected Python environment.'
 }
 
+Write-Host 'Checking AlphaSift adapter availability...'
+if (-not (Test-PythonCode -Python $pythonBin -Code "import alphasift.dsa_adapter")) {
+  throw 'alphasift.dsa_adapter is not importable after installing requirements.'
+}
+
+Write-Host 'Checking orjson availability...'
+if (-not (Test-PythonCode -Python $pythonBin -Code "import orjson")) {
+  throw 'orjson is not importable after installing requirements.'
+}
+
 if (Test-Path 'dist\backend') {
   Remove-Item -Recurse -Force 'dist\backend'
 }
@@ -68,6 +78,7 @@ $hiddenImports = @(
   'multipart',
   'multipart.multipart',
   'json_repair',
+  'orjson',
   'tiktoken',
   'tiktoken_ext',
   'tiktoken_ext.openai_public',
@@ -81,6 +92,9 @@ $hiddenImports = @(
   'api.v1.endpoints.history',
   'api.v1.endpoints.stocks',
   'api.v1.endpoints.health',
+  'api.v1.endpoints.alphasift',
+  'alphasift',
+  'alphasift.dsa_adapter',
   'api.v1.schemas',
   'api.v1.schemas.analysis',
   'api.v1.schemas.history',
@@ -92,6 +106,7 @@ $hiddenImports = @(
   'src.services.task_queue',
   'src.services.analysis_service',
   'src.services.history_service',
+  'src.services.alphasift_service',
   'uvicorn.logging',
   'uvicorn.loops',
   'uvicorn.loops.auto',
@@ -114,7 +129,9 @@ $pyInstallerArgs = @(
   '--add-data', 'static;static',
   '--add-data', 'strategies;strategies',
   '--collect-data', 'litellm',
-  '--collect-data', 'tiktoken'
+  '--collect-data', 'tiktoken',
+  '--collect-data', 'akshare',
+  '--collect-all', 'alphasift'
 )
 $pyInstallerArgs += $hiddenImportArgs
 $pyInstallerArgs += 'main.py'
@@ -130,6 +147,37 @@ if (!(Test-Path 'dist\stock_analysis')) {
 }
 
 Copy-Item -Path 'dist\stock_analysis' -Destination 'dist\backend\stock_analysis' -Recurse -Force
+
+Write-Host 'Verifying packaged runtime imports...'
+$packagedEntry = Join-Path 'dist\backend\stock_analysis' 'stock_analysis.exe'
+if (-not (Test-Path $packagedEntry)) {
+  throw "Packaged backend entrypoint not found: $packagedEntry"
+}
+$previousProbe = $env:DSA_PACKAGED_IMPORT_PROBE
+try {
+  foreach ($module in @('alphasift.dsa_adapter', 'orjson')) {
+    $env:DSA_PACKAGED_IMPORT_PROBE = $module
+    $probeProcess = Start-Process -FilePath $packagedEntry -Wait -PassThru
+    if ($probeProcess.ExitCode -ne 0) {
+      throw "Packaged backend cannot import $module; probe exited with code $($probeProcess.ExitCode)."
+    }
+  }
+} finally {
+  if ($null -eq $previousProbe) {
+    Remove-Item Env:DSA_PACKAGED_IMPORT_PROBE -ErrorAction SilentlyContinue
+  } else {
+    $env:DSA_PACKAGED_IMPORT_PROBE = $previousProbe
+  }
+}
+
+Write-Host 'Verifying packaged AkShare calendar data...'
+$packagedAkshareCalendar = Join-Path 'dist\backend\stock_analysis' '_internal\akshare\file_fold\calendar.json'
+if (-not (Test-Path $packagedAkshareCalendar)) {
+  $packagedAkshareCalendar = Join-Path 'dist\backend\stock_analysis' 'akshare\file_fold\calendar.json'
+}
+if (-not (Test-Path $packagedAkshareCalendar)) {
+  throw 'Packaged AkShare calendar data not found under dist\backend\stock_analysis.'
+}
 
 Write-Host 'Verifying static asset references (packaged)...'
 $packagedStatic = Join-Path 'dist\backend\stock_analysis' '_internal\static'
